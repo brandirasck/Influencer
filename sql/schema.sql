@@ -1,0 +1,44 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token_hash TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS registration_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code_hash TEXT UNIQUE NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('ACTIVE','USED','EXPIRED','RESERVED')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  reserved_until TIMESTAMPTZ,
+  used_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS temporary_registrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code_id UUID NOT NULL REFERENCES registration_codes(id),
+  payload JSONB NOT NULL,
+  pdf BYTEA,
+  download_token_hash TEXT UNIQUE,
+  agreement_version TEXT,
+  accepted_at TIMESTAMPTZ,
+  pdf_downloaded_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS catalog_influencers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_registration UUID,
+  profile JSONB NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','SUSPENDED','INACTIVE')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS download_token_hash TEXT UNIQUE;
+ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS agreement_version TEXT;
+ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;

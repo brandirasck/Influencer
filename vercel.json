@@ -1,0 +1,11 @@
+{
+  "version":2,
+  "functions":{"api/*.js":{"maxDuration":30}},
+  "crons":[{"path":"/api/cleanup","schedule":"*/5 * * * *"}],
+  "rewrites":[
+    {"source":"/influencers","destination":"/index.html"},
+    {"source":"/influencers/","destination":"/index.html"},
+    {"source":"/admin/influencers","destination":"/admin/index.html"},
+    {"source":"/admin/influencers/","destination":"/admin/index.html"}
+  ]
+}
