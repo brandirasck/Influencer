@@ -1,9 +1,22 @@
 {
-  "name":"brandirasck-influencers-standalone-netlify",
-  "version":"1.0.0",
-  "private":true,
-  "type":"module",
-  "scripts":{"dev":"netlify dev","start":"netlify dev"},
-  "dependencies":{"@netlify/functions":"latest","pdf-lib":"^1.17.1","pg":"^8.16.3"},
-  "devDependencies":{"netlify-cli":"latest"}
+  "name": "brandirasck-influencers-standalone-netlify",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "start": "netlify dev",
+    "hash-password": "node scripts/hash-password.mjs"
+  },
+  "dependencies": {
+    "@netlify/functions": "latest",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "netlify-cli": "latest"
+  },
+  "engines": {
+    "node": ">=18"
+  }
 }

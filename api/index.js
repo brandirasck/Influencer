@@ -1,6 +1,5 @@
-import crypto from 'crypto';
 import { query } from './_db.js';
-import { hash, randomCode, randomToken, adminFrom, send } from './_auth.js';
+import { hash, secretHash, randomCode, randomToken, adminFrom, send, verifyPassword } from './_auth.js';
 
 const tiers = [
   { max: 100000, stories: 400, reel: 600, collab: 1500 },
@@ -29,6 +28,24 @@ function json(req) {
       catch (e) { reject(e); }
     });
   });
+}
+
+function applySecurityHeaders(req, res) {
+  const allowed = String(process.env.ALLOWED_ORIGINS || '*')
+    .split(',').map(x => x.trim()).filter(Boolean);
+  const origin = req.headers.origin || '';
+  if (allowed.includes('*')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else if (origin && allowed.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Frame-Options', 'DENY');
 }
 
 function getCookie(req, name) {
@@ -110,16 +127,16 @@ function attemptMessage(attempts, lockedUntil) {
 
 export default async function handler(req, res) {
   try {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.setHeader('Cache-Control', 'no-store');
+    applySecurityHeaders(req, res);
     if (req.method === 'OPTIONS') return res.status(204).end();
 
     const action = req.query?.action || '';
 
     if (req.method === 'GET' && action === 'health') {
       await query('SELECT 1');
+      const required = ['DATABASE_URL', 'ADMIN_USERNAME', 'ADMIN_PASSWORD_HASH', 'SESSION_SECRET'];
+      const missing = required.filter(name => !process.env[name]);
+      if (missing.length) return send(res, 503, { ok: false, error: 'CONFIG_INCOMPLETE', missing });
       return send(res, 200, { ok: true, service: 'brandirasck-influencers-api', time: new Date().toISOString() });
     }
 
@@ -159,11 +176,11 @@ export default async function handler(req, res) {
       if (typeof b.payload !== 'object' || Array.isArray(b.payload)) return send(res, 400, { error: 'BAD_PAYLOAD' });
       const downloadToken = randomToken();
       const r = await query(
-        "WITH claimed AS (UPDATE registration_codes SET status='USED',used_at=now() WHERE id=$1 AND status='RESERVED' AND reserved_until>now() AND expires_at>now() RETURNING id) INSERT INTO temporary_registrations(code_id,payload,download_token_hash,agreement_version,accepted_at,status,expires_at) SELECT id,$2,$3,$4,now(),'PENDING_REVIEW',now()+interval '30 minutes' FROM claimed RETURNING id,expires_at",
+        "WITH claimed AS (UPDATE registration_codes SET status='USED',used_at=now() WHERE id=$1 AND status='RESERVED' AND reserved_until>now() AND expires_at>now() RETURNING id) INSERT INTO temporary_registrations(code_id,payload,download_token_hash,agreement_version,accepted_at,status,expires_at) SELECT id,$2,$3,$4,now(),'PENDING_REVIEW',now()+interval '30 minutes' FROM claimed RETURNING id,expires_at,accepted_at",
         [b.codeId, b.payload, hash(downloadToken), 'BRANDIRASCK-INFLUENCER-AGREEMENT-V1']
       );
       if (!r.length) return send(res, 400, { error: 'CODE_NOT_AVAILABLE' });
-      return send(res, 200, { ok: true, registrationId: r[0].id, downloadToken, expiresAt: r[0].expires_at });
+      return send(res, 200, { ok: true, registrationId: r[0].id, downloadToken, expiresAt: r[0].expires_at, acceptedAt: r[0].accepted_at });
     }
 
     if (req.method === 'POST' && action === 'pdf') {
@@ -191,18 +208,16 @@ export default async function handler(req, res) {
       const b = await json(req);
       if (String(b.username || '') !== String(process.env.ADMIN_USERNAME || '')) return send(res, 401, { error: 'INVALID_LOGIN' });
       const expected = process.env.ADMIN_PASSWORD_HASH || '';
-      const supplied = hash(b.password || '');
-      if (expected && (expected.length !== supplied.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(supplied)))) return send(res, 401, { error: 'INVALID_LOGIN' });
-      if (!expected && String(b.password || '') !== String(process.env.ADMIN_PASSWORD || '')) return send(res, 401, { error: 'INVALID_LOGIN' });
+      if (!expected || !verifyPassword(b.password || '', expected)) return send(res, 401, { error: 'INVALID_LOGIN' });
       const token = randomToken();
-      await query("INSERT INTO admin_sessions(token_hash,expires_at) VALUES($1,now()+interval '12 hours')", [hash(token)]);
+      await query("INSERT INTO admin_sessions(token_hash,expires_at) VALUES($1,now()+interval '12 hours')", [secretHash(token)]);
       return send(res, 200, { token });
     }
 
     if (req.method === 'POST' && action === 'admin-logout') {
       const h = req.headers.authorization || '';
       const adminToken = h.startsWith('Bearer ') ? h.slice(7) : '';
-      if (adminToken) await query('DELETE FROM admin_sessions WHERE token_hash=$1', [hash(adminToken)]);
+      if (adminToken) await query('DELETE FROM admin_sessions WHERE token_hash=$1', [secretHash(adminToken)]);
       return send(res, 200, { ok: true });
     }
 

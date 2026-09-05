@@ -1,0 +1,2 @@
+/admin/influencers / 301
+/admin/influencers/* /:splat 301

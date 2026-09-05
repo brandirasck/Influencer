@@ -1,64 +1,49 @@
-# API connection — Netlify-only
+# BRANDIRASCK — API connection
 
-The platform uses **one central Netlify API site + one PostgreSQL database**. The `admin/` and `public/` folders are static Netlify frontends and must use the exact same API URL.
+## Architecture
 
-## 1. Central Netlify API site
+Use **one central Netlify site** for the API and PostgreSQL, plus static Admin/Public frontends.
 
-Deploy the repository root to Netlify.
+### Central API / Admin
 
-Netlify Functions are located in `netlify/functions/`:
+Repository root deployment:
 
-- `netlify/functions/api.js` → central API
-- `netlify/functions/cleanup.js` → scheduled cleanup
+- Publish directory: `.`
+- Functions directory: `netlify/functions`
+- API: `/api`
+- Scheduled cleanup: `netlify/functions/cleanup.js`
 
-The API base URL is:
+### Public
 
-`/api`
+Static frontend only. `public/api-config.js` points to the central API URL.
 
-Set these environment variables on the **API Netlify site only**:
+### Admin
+
+The Admin frontend is also included in the central API deployment and `admin/api-config.js` points to the same central API.
+
+## Environment variables
+
+Set on the central API Netlify site:
 
 - `DATABASE_URL`
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD_HASH`
 - `SESSION_SECRET`
-- `CRON_SECRET` (optional)
+- `ALLOWED_ORIGINS` (recommended)
 
-Run `sql/schema.sql` in the PostgreSQL database.
+Run `npm run hash-password` locally to generate the Admin password hash.
 
-## 2. Public Netlify site
+## Database
 
-Deploy the `public/` folder as its own Netlify site.
+Run `sql/schema.sql` once.
 
-In `public/index.html`:
+## Test
 
-```html
-<script>window.BRANDIRASCK_API_URL = '/api';</script>
-```
-
-## 3. Admin Netlify site
-
-Deploy the `admin/` folder as its own Netlify site.
-
-In `admin/index.html`, use the **same exact API URL**:
-
-```html
-<script>window.BRANDIRASCK_API_URL = '/api';</script>
-```
-
-Do not use `/api` on the separate Admin/Public sites because that would target the current Netlify site's origin instead of the central API site.
-
-## 4. Health check
-
-Open:
-
-`/api?action=health`
-
-Expected JSON starts with:
-
-```json
-{"ok":true,"service":"brandirasck-influencers-api"}
-```
-
-## 5. End-to-end
-
-Admin → Generate Code → Public Verify → Registration → Review → Contract Acceptance → Temporary PDF → Admin Review → Approve → Public Catalog.
+1. `/api?action=health` returns `ok:true`.
+2. Admin login works.
+3. Generate a code.
+4. Public validates the code.
+5. Complete registration and accept the contract.
+6. PDF is uploaded temporarily.
+7. Admin approves.
+8. Profile appears in Public Catalog.

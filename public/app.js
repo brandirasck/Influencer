@@ -232,7 +232,7 @@ function contract(){
   <div class="eyebrow">BRANDIRASCK · INFLUENCERS NETWORK</div>
   <div class="contract-paper" id="contractPaper">
   <div class="contract-head"><img src="logo.jpeg"><div><h1>عقد الانضمام إلى شبكة المؤثرين</h1><p>BRANDIRASCK — Influencers / Creators / Artists Network</p></div></div>
-  <p><b>مرجع التسجيل:</b> يُنشأ عند التأكيد النهائي &nbsp; | &nbsp; <b>تاريخ القبول:</b> تاريخ ووقت الخادم</p>
+  <p><b>مرجع التسجيل:</b> <span id="contractReference">يُنشأ عند التأكيد النهائي</span> &nbsp; | &nbsp; <b>تاريخ القبول:</b> <span id="contractAcceptedAt">يسجل بتاريخ ووقت الخادم</span></p>
   <h3>1. تعريف الأطراف</h3><p>يبرم هذا العقد بين وكالة BRANDIRASCK، بصفتها الجهة المنظمة والمديرة لشبكة المؤثرين، وبين الشخص أو المجموعة المسجلة في هذا الطلب، ويشار إليه لاحقاً بـ«Influencer». تُعتمد المعلومات المدخلة والمقبولة في النظام كأساس لملف العضوية.</p>
   <h3>2. موضوع العقد والانضمام للشبكة</h3><p>يهدف العقد إلى تنظيم انضمام Influencer إلى شبكة BRANDIRASCK، وإتاحة فرص الخدمات والحملات والتعاون الإعلاني وفق الأسعار والشروط المحددة في هذا العقد وكل اتفاقية حملة لاحقة.</p>
   <h3>3. الحرية خارج BRANDIRASCK</h3><p>يحتفظ Influencer بحرية العمل والتعاقد والتفاوض خارج نطاق الخدمات التي تديرها BRANDIRASCK. لا تعتبر الوكالة الممثل الإعلاني الحصري للمؤثر، ولا تمنعه من ممارسة نشاطه المستقل. وتطبق شروط الوكالة ونسبة العمولة فقط على الخدمات التي تجلبها BRANDIRASCK للمؤثر أو الخدمات التي يقرر Influencer إسنادها إلى BRANDIRASCK.</p>
@@ -313,9 +313,14 @@ async function confirmReg(){
     state.registrationId = result.registrationId;
     state.downloadToken = result.downloadToken;
     state.data.registrationId = result.registrationId;
+    state.data.serverAcceptedAt = result.acceptedAt;
 
     // نولد نسخة PDF في المتصفح، ثم نخزنها مؤقتاً في السيرفر.
     button.textContent = 'جاري تجهيز PDF...';
+    const ref = document.querySelector('#contractReference');
+    const accepted = document.querySelector('#contractAcceptedAt');
+    if (ref) ref.textContent = state.registrationId;
+    if (accepted) accepted.textContent = new Date(result.acceptedAt).toLocaleString('fr-MA', { dateStyle: 'medium', timeStyle: 'medium', timeZone: 'Africa/Casablanca' });
     const blob = await makePdf();
     const pdfBase64 = await blobToBase64(blob);
 
