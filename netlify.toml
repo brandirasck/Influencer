@@ -1,0 +1,38 @@
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api"
+  to = "/.netlify/functions/api"
+  status = 200
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api"
+  status = 200
+
+[[redirects]]
+  from = "/influencers"
+  to = "/public/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/influencers/*"
+  to = "/public/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/admin/influencers"
+  to = "/admin/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin/influencers/*"
+  to = "/admin/:splat"
+  status = 200
+
+[functions.cleanup]
+  schedule = "*/5 * * * *"

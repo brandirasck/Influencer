@@ -1,26 +1,59 @@
-# BRANDIRASCK Influencers — Standalone
+# BRANDIRASCK Influencers — Netlify-only
 
-Standalone Vercel project for `/influencers` and `/admin/influencers`. It has no runtime dependency on the existing BRANDIRASCK website.
+Standalone Influencers platform. **No Vercel dependency.**
 
-## Production setup
-1. Create a PostgreSQL database.
-2. Run `sql/schema.sql`.
-3. Set environment variables from `.env.example`.
-4. Install dependencies and deploy to Vercel.
-5. The domain/routing step is intentionally separate and should be done only after this standalone project is verified.
+## Architecture
 
-## Data retention model
-- Registration code: 30 minutes and one-time use.
-- Unapproved registration + PDF: temporary, maximum 30 minutes.
-- Vercel cron calls `/api/cleanup` every 5 minutes to delete expired temporary records and expired codes.
-- Only approved public catalog data is persisted in `catalog_influencers`.
+- `public/` → Public Influencer site (Netlify)
+- `admin/` → Admin site (Netlify)
+- `netlify/functions/api.js` → Central API (Netlify Functions)
+- `netlify/functions/cleanup.js` → Scheduled cleanup (Netlify Scheduled Function)
+- `sql/schema.sql` → PostgreSQL schema
 
-## Contract
-The current browser contract screen is a technical placeholder for the final legal text. Replace it with the supplied BRANDIRASCK contract before production signing.
+The Admin and Public sites must point to the same deployed Netlify API site's function URL:
 
-## Important
-The current PDF is a temporary technical PDF generator used to validate the workflow. It must be replaced with the final branded PDF layout once the actual contract and logo assets are supplied/approved.
+`/api`
 
+## Environment variables (API Netlify site only)
 
-## Agreement V1
-The onboarding contract now includes: independent work outside BRANDIRASCK, 15% agency commission for agency-assigned services, platform-specific follower pricing, 4 Stories obligations, Reel one-month retention, Collab Reel two-month retention and ad rights, publishing schedule compliance, content rights, follower verification, Catalog usage, Promo Code 10% reward (excluding Influencer Collaboration), confidentiality, payment, cancellation/termination, suspension, digital acceptance, and server timestamps. Replace only if a later signed legal contract supersedes this version.
+- `DATABASE_URL`
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD_HASH`
+- `ADMIN_PASSWORD` (optional fallback; prefer hash)
+- `SESSION_SECRET` (reserved for session hardening)
+- `CRON_SECRET` (optional; scheduled function is already private to Netlify)
+
+Never put database credentials in `public/` or `admin/`.
+
+## Database
+
+Run `sql/schema.sql` against PostgreSQL before using the API.
+
+## Workflow
+
+Admin generates code → Influencer verifies code → registration → review → digital contract acceptance → temporary PDF upload → Admin review/approval → public ACTIVE catalog.
+
+## Netlify deployment
+
+### 1) API site
+Deploy the repository root as a Netlify site. Netlify will use `netlify.toml` and deploy `netlify/functions/api.js` plus the scheduled cleanup function.
+
+Set the environment variables above in the API site's Netlify environment settings.
+
+### 2) Public site
+Deploy the `public/` folder as a separate Netlify site. In `public/index.html`, replace the placeholder API URL with the API site's URL.
+
+### 3) Admin site
+Deploy the `admin/` folder as a separate Netlify site. In `admin/index.html`, replace the placeholder API URL with the same API site's URL.
+
+### 4) Test
+1. Open `/api?action=health`.
+2. Admin login.
+3. Generate a code.
+4. Verify it from Public.
+5. Complete registration and accept the contract.
+6. Upload/store the temporary PDF.
+7. Approve from Admin.
+8. Confirm the profile appears in Public Catalog.
+
+The contract and PDF content should still be reviewed/approved as final business/legal content before production use.

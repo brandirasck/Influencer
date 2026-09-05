@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS temporary_registrations (
   download_token_hash TEXT UNIQUE,
   agreement_version TEXT,
   accepted_at TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'PENDING_REVIEW' CHECK(status IN ('PENDING_REVIEW','APPROVED')),
   pdf_downloaded_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -42,3 +43,8 @@ CREATE TABLE IF NOT EXISTS catalog_influencers (
 ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS download_token_hash TEXT UNIQUE;
 ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS agreement_version TEXT;
 ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'PENDING_REVIEW';
+
+UPDATE temporary_registrations SET status='PENDING_REVIEW' WHERE status IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS catalog_source_registration_uq ON catalog_influencers(source_registration) WHERE source_registration IS NOT NULL;
