@@ -157,9 +157,16 @@ async function renderDash() {
           </div>
           <div id="codes">
             ${codes.length ? codes.map(c => `
-              <div class="code-item" style="padding:8px;margin:4px 0;background:#f9f9f9;display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                <span><b>${escapeHtml(c.id)}</b></span>
-                <span>${statusLabel(c.status)} · expires ${formatDate(c.expires_at)}</span>
+              <div class="code-item">
+                <div class="code-main">
+                  <div class="code-label">Registration Code</div>
+                  <div class="code-field-row">
+                    <input class="code-field" readonly value="${escapeHtml(c.code || 'غير متوفر')}" aria-label="Registration Code">
+                    ${c.code ? `<button class="btn copy-code" type="button" data-code="${escapeHtml(c.code)}">Copy</button>` : ''}
+                  </div>
+                  <div class="code-meta">Database ID: <span>${escapeHtml(c.id)}</span></div>
+                </div>
+                <div class="code-status">${statusLabel(c.status)} · expires ${formatDate(c.expires_at)}</div>
               </div>
             `).join('') : '<p class="notice">لا توجد رموز حالياً.</p>'}
           </div>
@@ -186,6 +193,18 @@ async function renderDash() {
     `);
 
     document.querySelector('#gen').onclick = generateCode;
+    document.querySelectorAll('.copy-code').forEach(button => {
+      button.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(button.dataset.code || '');
+          const original = button.textContent;
+          button.textContent = 'Copied ✓';
+          setTimeout(() => { button.textContent = original; }, 1200);
+        } catch (_) {
+          alert('تعذر نسخ الكود تلقائياً.');
+        }
+      };
+    });
     document.querySelectorAll('[data-pdf]').forEach(button => {
       button.onclick = () => openAdminPdf(button.dataset.pdf);
     });

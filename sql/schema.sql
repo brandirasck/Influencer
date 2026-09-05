@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
 CREATE TABLE IF NOT EXISTS registration_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code_hash TEXT UNIQUE NOT NULL,
+  code_ciphertext TEXT,
   status TEXT NOT NULL CHECK(status IN ('ACTIVE','USED','EXPIRED','RESERVED')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL,
@@ -39,6 +40,8 @@ CREATE TABLE IF NOT EXISTS catalog_influencers (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE registration_codes ADD COLUMN IF NOT EXISTS code_ciphertext TEXT;
 
 ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS download_token_hash TEXT UNIQUE;
 ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS agreement_version TEXT;

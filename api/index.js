@@ -1,5 +1,5 @@
 import { query } from './_db.js';
-import { hash, secretHash, randomCode, randomToken, adminFrom, send, verifyPassword } from './_auth.js';
+import { hash, secretHash, randomCode, randomToken, adminFrom, send, verifyPassword, encryptSecret, decryptSecret } from './_auth.js';
 
 const tiers = [
   { max: 100000, stories: 400, reel: 600, collab: 1500 },
@@ -153,13 +153,19 @@ export default async function handler(req, res) {
       }
 
       const b = await json(req);
-      const code = String(b.code || '').trim().toUpperCase();
+      const codeInput = String(b.code || '').trim().toUpperCase();
+      const code = codeInput.replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
       if (!code) return send(res, 400, { error: 'CODE_REQUIRED', message: 'المرجو إدخال رمز التسجيل.' });
+      const candidates = code.length === 12 ? [`${code.slice(0,4)}-${code.slice(4,8)}-${code.slice(8,12)}`, code] : [codeInput, code];
 
-      const rows = await query(
-        "UPDATE registration_codes SET status='RESERVED',reserved_until=LEAST(now()+interval '30 minutes', expires_at) WHERE code_hash=$1 AND status='ACTIVE' AND expires_at>now() RETURNING id,expires_at",
-        [hash(code)]
-      );
+      let rows = [];
+      for (const candidate of [...new Set(candidates)]) {
+        rows = await query(
+          "UPDATE registration_codes SET status='RESERVED',reserved_until=LEAST(now()+interval '30 minutes', expires_at) WHERE code_hash=$1 AND status='ACTIVE' AND expires_at>now() RETURNING id,expires_at",
+          [hash(candidate)]
+        );
+        if (rows.length) break;
+      }
       if (!rows.length) {
         const failed = await recordFailedAttempt(attempt.deviceId);
         const info = attemptMessage(failed.attempts, failed.lockedUntil);
@@ -224,14 +230,16 @@ export default async function handler(req, res) {
     if (req.method === 'POST' && action === 'admin-generate-code') {
       if (!(await adminFrom(req))) return send(res, 401, { error: 'UNAUTHORIZED' });
       const code = randomCode();
-      await query("INSERT INTO registration_codes(code_hash,status,expires_at) VALUES($1,'ACTIVE',now()+interval '30 minutes')", [hash(code)]);
-      return send(res, 200, { code, expiresMinutes: 30 });
+      const codeCiphertext = encryptSecret(code);
+      const inserted = await query("INSERT INTO registration_codes(code_hash,code_ciphertext,status,expires_at) VALUES($1,$2,'ACTIVE',now()+interval '30 minutes') RETURNING id,created_at,expires_at", [hash(code), codeCiphertext]);
+      return send(res, 200, { code, id: inserted[0].id, createdAt: inserted[0].created_at, expiresAt: inserted[0].expires_at, expiresMinutes: 30 });
     }
 
     if (req.method === 'GET' && action === 'admin-codes') {
       if (!(await adminFrom(req))) return send(res, 401, { error: 'UNAUTHORIZED' });
-      const rows = await query("SELECT id,CASE WHEN status IN ('ACTIVE','RESERVED') AND expires_at<=now() THEN 'EXPIRED' ELSE status END AS status,created_at,expires_at,used_at FROM registration_codes ORDER BY created_at DESC LIMIT 100");
-      return send(res, 200, { items: rows });
+      const rows = await query("SELECT id,code_ciphertext,CASE WHEN status IN ('ACTIVE','RESERVED') AND expires_at<=now() THEN 'EXPIRED' ELSE status END AS status,created_at,expires_at,used_at FROM registration_codes ORDER BY created_at DESC LIMIT 100");
+      const items = rows.map(row => ({ ...row, code: row.code_ciphertext ? decryptSecret(row.code_ciphertext) : null }));
+      return send(res, 200, { items });
     }
 
     if (req.method === 'GET' && action === 'admin-temp') {
