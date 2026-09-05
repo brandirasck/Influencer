@@ -32,6 +32,7 @@ async function api(action, options = {}) {
   if (!response.ok) {
     const error = new Error(data?.error || `HTTP_${response.status}`);
     error.status = response.status;
+    error.data = data || {};
     throw error;
   }
   return data;
@@ -58,7 +59,7 @@ function renderCode(){
   steps.innerHTML = `<div class="step">
   <div class="eyebrow">PRIVATE REGISTRATION</div><h2>أدخل رمز التسجيل الخاص بك</h2>
   <p class="muted">الرمز صادر من BRANDIRASCK، صالح لمدة 30 دقيقة ويُستعمل مرة واحدة فقط.</p>
-  <div class="field"><label>Registration Code</label><input id="code" autocomplete="off" placeholder="XXXXXXXXXXXX"></div>
+  <div class="field"><label>Registration Code</label><input id="code" autocomplete="off" placeholder="XXXXXXXXXXXX"><div id="codeError" class="code-error" hidden></div></div>
   <div class="notice">ما عندكش Code؟ تقدر تطلبو من BRANDIRASCK عبر WhatsApp.</div>
   <button class="btn" id="verify">تحقق من الرمز</button>
   <a class="btn ghost" href="https://wa.me/${WA}?text=${encodeURIComponent('السلام عليكم، بغيت نطلب Registration Code للانضمام إلى شبكة BRANDIRASCK Influencers.')}" target="_blank" rel="noopener">طلب Code عبر WhatsApp</a>
@@ -67,29 +68,80 @@ function renderCode(){
   $('#code').addEventListener('keydown', event => { if (event.key === 'Enter') verify(); });
 }
 
+let verifyLockedUntil = 0;
+let verifyTimer = null;
+
+function showCodeError(message, lockedUntil = 0){
+  const box = $('#codeError');
+  if(!box) return;
+  box.hidden = false;
+  box.textContent = message;
+  verifyLockedUntil = lockedUntil || 0;
+  if (verifyTimer) clearInterval(verifyTimer);
+  if (verifyLockedUntil > Date.now()) {
+    verifyTimer = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((verifyLockedUntil - Date.now()) / 1000));
+      if (remaining <= 0) {
+        clearInterval(verifyTimer); verifyTimer = null; verifyLockedUntil = 0;
+        box.textContent = 'انتهى وقت الإيقاف. يمكنك الآن إدخال رمز آخر.';
+        $('#verify').disabled = false;
+        $('#verify').textContent = 'تحقق من الرمز';
+        return;
+      }
+      box.textContent = `${message} يمكنك إعادة المحاولة بعد ${formatCountdown(remaining)}.`;
+    }, 1000);
+  }
+}
+
+function clearCodeError(){
+  const box = $('#codeError');
+  if(box){ box.hidden = true; box.textContent = ''; }
+  if (verifyTimer) { clearInterval(verifyTimer); verifyTimer = null; }
+  verifyLockedUntil = 0;
+}
+
+function formatCountdown(seconds){
+  const s = Math.max(0, Number(seconds)||0);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  if(h) return `${h}س ${m}د`;
+  if(m) return `${m}د ${sec}ث`;
+  return `${sec}ث`;
+}
+
 async function verify(){
   const code = $('#code').value.trim();
-  if(!code) return alert('المرجو إدخال رمز التسجيل.');
+  if(!code){ showCodeError('المرجو إدخال رمز التسجيل.'); return; }
+  if(verifyLockedUntil > Date.now()) return;
+  clearCodeError();
 
   const button = $('#verify');
   button.disabled = true;
   button.textContent = 'جاري التحقق...';
 
   try {
-    const result = await api('validate-code', {
-      method: 'POST',
-      body: { code }
-    });
+    const result = await api('validate-code', { method:'POST', body:{code} });
     state.codeId = result.codeId;
     renderForm();
   } catch (error) {
-    alert(error.message === 'INVALID_OR_EXPIRED_CODE'
-      ? 'الرمز غير صالح أو انتهت صلاحيته.'
-      : error.message === 'CODE_NOT_AVAILABLE'
-        ? 'الرمز لم يعد متاحاً. المرجو استعمال رمز آخر.'
-        : 'تعذر التحقق من الرمز. حاول مرة أخرى.');
-    button.disabled = false;
-    button.textContent = 'تحقق من الرمز';
+    const seconds = Number(error.data?.retryAfterSeconds || 0);
+    if(error.status === 429 || error.message === 'CODE_LOCKED'){
+      const until = Date.now() + seconds * 1000;
+      showCodeError(error.data?.message || 'تم إيقاف المحاولات مؤقتاً.', until);
+      button.disabled = true;
+      button.textContent = 'المحاولات موقوفة';
+    } else if(error.message === 'INVALID_CODE'){
+      showCodeError(error.data?.message || 'الرمز غير صالح للاستعمال.');
+      button.disabled = false;
+      button.textContent = 'تحقق من الرمز';
+    } else if(error.message === 'DATABASE_NOT_CONFIGURED'){
+      showCodeError('تعذر الاتصال بالسيرفر: قاعدة البيانات غير مربوطة بعد.');
+      button.disabled = false;
+      button.textContent = 'تحقق من الرمز';
+    } else {
+      showCodeError('تعذر التحقق من الرمز حالياً. المرجو المحاولة مرة أخرى.');
+      button.disabled = false;
+      button.textContent = 'تحقق من الرمز';
+    }
   }
 }
 

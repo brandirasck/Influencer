@@ -1,36 +1,41 @@
-# Netlify-only deployment checklist
+# Netlify deployment checklist
 
-## API Netlify site
-- Deploy repository root.
-- Confirm Netlify Functions are enabled.
-- Set `DATABASE_URL`.
-- Set `ADMIN_USERNAME`.
-- Set `ADMIN_PASSWORD_HASH`.
-- Set `SESSION_SECRET`.
-- Optionally set `CRON_SECRET`.
-- Run `sql/schema.sql` in PostgreSQL.
-- Test `/.netlify/functions/api?action=health`.
+## Important
+Do NOT deploy only the `admin/` or `public/` folder as the Netlify project root if you want the shared Function to be available. Point both Netlify sites to the GitHub repository root.
 
-## Public Netlify site
-- Deploy `public/`.
-- Use the built-in `/api` route in `public/index.html`.
-  `/api`
-- Redeploy.
+### Admin site
+Build settings:
+- Base directory: leave empty
+- Publish directory: `admin`
+- Functions directory: `netlify/functions`
 
-## Admin Netlify site
-- Deploy `admin/`.
-- Use the same built-in `/api` route in `admin/index.html`.
-- Redeploy.
+### Public site
+Build settings:
+- Base directory: leave empty
+- Publish directory: `public`
+- Functions directory: `netlify/functions`
 
-## End-to-end test
-- Admin login works.
-- Generate code works.
-- Public validates the generated code.
-- Reusing the same code fails.
-- Registration reaches Admin as `PENDING_REVIEW`.
-- Contract acceptance is recorded.
-- PDF is stored temporarily.
-- Admin can view PDF.
-- Admin approval creates an `ACTIVE` catalog profile.
-- Public Catalog displays only `ACTIVE` profiles.
-- Scheduled cleanup removes expired temporary records/codes.
+### Environment variables
+Both sites that execute the API function must have:
+- `DATABASE_URL` = same PostgreSQL connection string
+
+Admin additionally needs:
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD_HASH` (preferred)
+- `SESSION_SECRET`
+
+### Database
+Run `sql/schema.sql` once. It creates `registration_codes`, `temporary_registrations`, `catalog_influencers`, admin sessions, and the server-side code-attempt lock table.
+
+### Smoke test
+- `/api?action=health` → `ok:true`
+- Admin login → works
+- Generate code → works
+- Public correct code → continues
+- Public wrong code → red inline error under code field
+- 4 wrong attempts → 1 minute lock
+- 5th wrong attempt after unlock → 30 minute lock
+- 6th wrong attempt after unlock → 6 hour lock
+- Registration → Admin Temporary Registrations
+- PDF → available for 30 minutes
+- Admin approval → Catalog

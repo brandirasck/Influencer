@@ -48,3 +48,11 @@ ALTER TABLE temporary_registrations ADD COLUMN IF NOT EXISTS status TEXT NOT NUL
 UPDATE temporary_registrations SET status='PENDING_REVIEW' WHERE status IS NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS catalog_source_registration_uq ON catalog_influencers(source_registration) WHERE source_registration IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS code_attempt_limits (
+  device_hash TEXT PRIMARY KEY,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  locked_until TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS code_attempt_limits_locked_idx ON code_attempt_limits(locked_until);
